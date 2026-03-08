@@ -407,16 +407,16 @@ export default function BibleStudy() {
                                       <button className={`chbtn ${isChDone(book,ch)?"done":""}`}
                                         onClick={()=>toggleChapter(book,ch)}>{ch}</button>
                                       {isHovered && (
-                                        <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:INK,border:`1px solid ${GOLD}`,borderRadius:3,padding:"6px 0",zIndex:100,whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(0,0,0,0.3)"}}>
+                                        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:INK,border:`1px solid ${GOLD}`,borderRadius:3,padding:"6px 0",zIndex:9999,whiteSpace:"nowrap",boxShadow:"0 -4px 16px rgba(0,0,0,0.4)",minWidth:130}}>
                                           <div style={{fontSize:11,color:GOLD,letterSpacing:1,padding:"0 12px 6px",textAlign:"center",borderBottom:`1px solid rgba(201,168,76,0.2)`}}>{ref}</div>
                                           {[
                                             ["📖 Study", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Please explain ${ref}. Cover context, key themes, cross-references, and life application.`, ref); setHoveredChapter(null); }],
                                             ["❓ Quiz", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Quiz me on ${ref} with 3-5 questions — mix comprehension and reflection. Number each question.`, ref); setHoveredChapter(null); }],
                                             [isChDone(book,ch) ? "○ Unmark" : "✓ Mark done", ()=>{ toggleChapter(book,ch); setHoveredChapter(null); }],
                                           ].map(([label, action])=>(
-                                            <button key={label} onClick={action} style={{display:"block",width:"100%",background:"none",border:"none",color:PARCHMENT,fontSize:13,padding:"6px 14px",cursor:"pointer",textAlign:"left",fontFamily:"'EB Garamond',serif",transition:"background 0.15s"}}
-                                              onMouseEnter={e=>e.target.style.background="rgba(201,168,76,0.12)"}
-                                              onMouseLeave={e=>e.target.style.background="none"}>
+                                            <button key={label} onClick={action} style={{display:"block",width:"100%",background:"none",border:"none",color:PARCHMENT,fontSize:13,padding:"7px 14px",cursor:"pointer",textAlign:"left",fontFamily:"'EB Garamond',serif",transition:"background 0.15s"}}
+                                              onMouseEnter={e=>e.currentTarget.style.background="rgba(201,168,76,0.12)"}
+                                              onMouseLeave={e=>e.currentTarget.style.background="none"}>
                                               {label}
                                             </button>
                                           ))}
