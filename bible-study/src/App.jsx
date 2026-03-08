@@ -7,16 +7,38 @@ const RUST = "#8B3A2A";
 const SAGE = "#4A6741";
 const CREAM = "#FAF6ED";
 
-const STORAGE_KEY = "bible_study_progress";
-const PLAN_KEY = "bible_reading_plan";
-const CONVOS_KEY = "bible_study_convos";
+const SUPABASE_URL = "https://jgysavthgllauchoxouo.supabase.co";
+const SUPABASE_KEY = "sb_publishable_84yzHlovLdrXXZN-VnWqlA_RgpgydpS";
+const USER_ID = "ife-bible-study";
+
+const sb = async (method, path, body) => {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Prefer": method === "POST" ? "resolution=merge-duplicates,return=representation" : "return=representation",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    if (!res.ok) return { error: res.status };
+    return text ? JSON.parse(text) : null;
+  } catch(e) {
+    return { error: e.message };
+  }
+};
 
 const loadData = async () => {
-  const result = { study_log: [], completed_chapters: {}, saved_convos: {} };
-  try { const s = await window.storage.get(STORAGE_KEY); if(s) result.study_log = JSON.parse(s.value); } catch(e){}
-  try { const p = await window.storage.get(PLAN_KEY); if(p) result.completed_chapters = JSON.parse(p.value); } catch(e){}
-  try { const c = await window.storage.get(CONVOS_KEY); if(c) result.saved_convos = JSON.parse(c.value); } catch(e){}
-  return result;
+  const rows = await sb("GET", `bible_progress?id=eq.${USER_ID}`);
+  if (Array.isArray(rows) && rows.length > 0) return rows[0];
+  return { id: USER_ID, study_log: [], completed_chapters: {}, saved_convos: {} };
+};
+
+const saveData = async (data) => {
+  return await sb("POST", "bible_progress", { id: USER_ID, ...data });
 };
 
 const systemPrompt = `You are a warm, knowledgeable non-denominational Bible study companion. 
@@ -59,7 +81,7 @@ export default function BibleStudy() {
   const [savedConvos, setSavedConvos] = useState({});
   const [storageReady, setStorageReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
-  const [hoveredChapter, setHoveredChapter] = useState(null); // {book, ch}
+  const [hoveredChapter, setHoveredChapter] = useState(null);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -76,12 +98,12 @@ export default function BibleStudy() {
   const persist = async (overrides = {}) => {
     setSyncStatus("saving");
     try {
-      const sl = overrides.study_log ?? studyLog;
-      const cc = overrides.completed_chapters ?? completedChapters;
-      const sc = overrides.saved_convos ?? savedConvos;
-      await window.storage.set(STORAGE_KEY, JSON.stringify(sl));
-      await window.storage.set(PLAN_KEY, JSON.stringify(cc));
-      await window.storage.set(CONVOS_KEY, JSON.stringify(sc));
+      const result = await saveData({
+        study_log: overrides.study_log ?? studyLog,
+        completed_chapters: overrides.completed_chapters ?? completedChapters,
+        saved_convos: overrides.saved_convos ?? savedConvos,
+      });
+      if (result?.error) throw new Error(result.error);
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2000);
     } catch(e) {
@@ -134,9 +156,9 @@ export default function BibleStudy() {
     const newMsgs = [...messages, {role:"user",content:userMessage}];
     setMessages(newMsgs); setLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const res = await fetch("/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:systemPrompt,messages:newMsgs})
+        body:JSON.stringify({system:systemPrompt, messages:newMsgs})
       });
       const data = await res.json();
       const reply = data.content?.[0]?.text || "No response.";
@@ -263,9 +285,9 @@ export default function BibleStudy() {
             </div>
             {syncStatus && (
               <div className={`sync ${syncStatus}`}>
-                {syncStatus==="saving" && "⟳ Saving..."}
-                {syncStatus==="saved" && "✓ Saved"}
-                {syncStatus==="error" && "✗ Error"}
+                {syncStatus==="saving" && "⟳ Syncing..."}
+                {syncStatus==="saved" && "✓ Synced"}
+                {syncStatus==="error" && "✗ Sync error"}
               </div>
             )}
           </div>
@@ -407,14 +429,16 @@ export default function BibleStudy() {
                                       <button className={`chbtn ${isChDone(book,ch)?"done":""}`}
                                         onClick={()=>toggleChapter(book,ch)}>{ch}</button>
                                       {isHovered && (
-                                        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:INK,border:`1px solid ${GOLD}`,borderRadius:3,padding:"6px 0",zIndex:9999,whiteSpace:"nowrap",boxShadow:"0 -4px 16px rgba(0,0,0,0.4)",minWidth:130}}>
+                                        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:INK,border:`1px solid ${GOLD}`,borderRadius:3,padding:"6px 0",zIndex:9999,whiteSpace:"nowrap",boxShadow:"0 -4px 16px rgba(0,0,0,0.4)",minWidth:130}}
+                                          onMouseEnter={()=>setHoveredChapter({book,ch})}
+                                          onMouseLeave={()=>setHoveredChapter(null)}>
                                           <div style={{fontSize:11,color:GOLD,letterSpacing:1,padding:"0 12px 6px",textAlign:"center",borderBottom:`1px solid rgba(201,168,76,0.2)`}}>{ref}</div>
                                           {[
                                             ["📖 Study", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Please explain ${ref}. Cover context, key themes, cross-references, and life application.`, ref); setHoveredChapter(null); }],
                                             ["❓ Quiz", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Quiz me on ${ref} with 3-5 questions — mix comprehension and reflection. Number each question.`, ref); setHoveredChapter(null); }],
                                             [isChDone(book,ch) ? "○ Unmark" : "✓ Mark done", ()=>{ toggleChapter(book,ch); setHoveredChapter(null); }],
                                           ].map(([label, action])=>(
-                                            <button key={label} onClick={action} style={{display:"block",width:"100%",background:"none",border:"none",color:PARCHMENT,fontSize:13,padding:"7px 14px",cursor:"pointer",textAlign:"left",fontFamily:"'EB Garamond',serif",transition:"background 0.15s"}}
+                                            <button key={label} onClick={action} style={{display:"block",width:"100%",background:"none",border:"none",color:PARCHMENT,fontSize:13,padding:"7px 14px",cursor:"pointer",textAlign:"left",fontFamily:"'EB Garamond',serif"}}
                                               onMouseEnter={e=>e.currentTarget.style.background="rgba(201,168,76,0.12)"}
                                               onMouseLeave={e=>e.currentTarget.style.background="none"}>
                                               {label}
