@@ -7,36 +7,16 @@ const RUST = "#8B3A2A";
 const SAGE = "#4A6741";
 const CREAM = "#FAF6ED";
 
-const SUPABASE_URL = "https://jgysavthgllauchoxouo.supabase.co";
-const SUPABASE_KEY = "sb_publishable_84yzHlovLdrXXZN-VnWqlA_RgpgydpS";
-const USER_ID = "ife-bible-study";
-
-const sb = async (method, path, body) => {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Prefer": method === "POST" ? "resolution=merge-duplicates,return=representation" : "return=representation",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    if (!res.ok) return null;
-    return text ? JSON.parse(text) : null;
-  } catch(e) { return null; }
-};
+const STORAGE_KEY = "bible_study_progress";
+const PLAN_KEY = "bible_reading_plan";
+const CONVOS_KEY = "bible_study_convos";
 
 const loadData = async () => {
-  const rows = await sb("GET", `bible_progress?id=eq.${USER_ID}`);
-  if (Array.isArray(rows) && rows.length > 0) return rows[0];
-  return { id: USER_ID, study_log: [], completed_chapters: {}, saved_convos: {} };
-};
-
-const saveData = async (data) => {
-  await sb("POST", "bible_progress", { id: USER_ID, ...data });
+  const result = { study_log: [], completed_chapters: {}, saved_convos: {} };
+  try { const s = await window.storage.get(STORAGE_KEY); if(s) result.study_log = JSON.parse(s.value); } catch(e){}
+  try { const p = await window.storage.get(PLAN_KEY); if(p) result.completed_chapters = JSON.parse(p.value); } catch(e){}
+  try { const c = await window.storage.get(CONVOS_KEY); if(c) result.saved_convos = JSON.parse(c.value); } catch(e){}
+  return result;
 };
 
 const systemPrompt = `You are a warm, knowledgeable non-denominational Bible study companion. 
@@ -46,72 +26,21 @@ When explaining passages: cover (1) context, (2) key themes, (3) cross-reference
 When giving quizzes: ask 3-5 thoughtful questions mixing comprehension and reflection.
 Keep responses warm and conversational, not overly academic.`;
 
+const fonts = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');`;
+
 const READING_PLAN = [
-  {
-    phase: 1, title: "The Foundation — Who Is Jesus?",
-    description: "Start with the Gospels and core NT letters to anchor your faith",
-    color: SAGE,
-    books: [
-      {book:"John",chapters:21},{book:"Mark",chapters:16},{book:"Romans",chapters:16},
-      {book:"Ephesians",chapters:6},{book:"Philippians",chapters:4},{book:"Colossians",chapters:4},
-    ]
-  },
-  {
-    phase: 2, title: "Wisdom & Worship",
-    description: "Psalms, Proverbs, and books of wisdom for daily life",
-    color: GOLD,
-    books: [
-      {book:"Psalms",chapters:150},{book:"Proverbs",chapters:31},{book:"Ecclesiastes",chapters:12},
-      {book:"Song of Solomon",chapters:8},{book:"Job",chapters:42},
-    ]
-  },
-  {
-    phase: 3, title: "In the Beginning — The Story of Israel",
-    description: "The OT narrative from creation through the wilderness",
-    color: RUST,
-    books: [
-      {book:"Genesis",chapters:50},{book:"Exodus",chapters:40},{book:"Numbers",chapters:36},
-      {book:"Deuteronomy",chapters:34},{book:"Joshua",chapters:24},{book:"Judges",chapters:21},
-      {book:"Ruth",chapters:4},{book:"Leviticus",chapters:27},
-    ]
-  },
-  {
-    phase: 4, title: "The Church is Born — Acts & Letters",
-    description: "How the early church spread and Paul's letters to the churches",
-    color: "#4A7A8A",
-    books: [
-      {book:"Luke",chapters:24},{book:"Acts",chapters:28},{book:"1 Corinthians",chapters:16},
-      {book:"2 Corinthians",chapters:13},{book:"Galatians",chapters:6},{book:"1 Thessalonians",chapters:5},
-      {book:"2 Thessalonians",chapters:3},{book:"1 Timothy",chapters:6},{book:"2 Timothy",chapters:4},
-      {book:"Titus",chapters:3},{book:"Philemon",chapters:1},{book:"Hebrews",chapters:13},
-      {book:"James",chapters:5},{book:"1 Peter",chapters:5},{book:"2 Peter",chapters:3},
-      {book:"1 John",chapters:5},{book:"2 John",chapters:1},{book:"3 John",chapters:1},{book:"Jude",chapters:1},
-    ]
-  },
-  {
-    phase: 5, title: "Kings, Prophets & the Heart of Israel",
-    description: "Israel's kings, the major prophets, and God's covenant faithfulness",
-    color: "#7A5C8A",
-    books: [
-      {book:"1 Samuel",chapters:31},{book:"2 Samuel",chapters:24},{book:"1 Kings",chapters:22},
-      {book:"2 Kings",chapters:25},{book:"1 Chronicles",chapters:29},{book:"2 Chronicles",chapters:36},
-      {book:"Ezra",chapters:10},{book:"Nehemiah",chapters:13},{book:"Esther",chapters:10},
-      {book:"Isaiah",chapters:66},{book:"Jeremiah",chapters:52},{book:"Lamentations",chapters:5},
-      {book:"Ezekiel",chapters:48},{book:"Daniel",chapters:12},
-    ]
-  },
-  {
-    phase: 6, title: "The Minor Prophets & Revelation",
-    description: "Completing the prophets and the final vision of God's plan",
-    color: "#8A6A3A",
-    books: [
-      {book:"Hosea",chapters:14},{book:"Joel",chapters:3},{book:"Amos",chapters:9},
-      {book:"Obadiah",chapters:1},{book:"Jonah",chapters:4},{book:"Micah",chapters:7},
-      {book:"Nahum",chapters:3},{book:"Habakkuk",chapters:3},{book:"Zephaniah",chapters:3},
-      {book:"Haggai",chapters:2},{book:"Zechariah",chapters:14},{book:"Malachi",chapters:4},
-      {book:"Matthew",chapters:28},{book:"Revelation",chapters:22},
-    ]
-  }
+  { phase:1, title:"The Foundation — Who Is Jesus?", description:"Start with the Gospels and core NT letters to anchor your faith", color:SAGE,
+    books:[{book:"John",chapters:21},{book:"Mark",chapters:16},{book:"Romans",chapters:16},{book:"Ephesians",chapters:6},{book:"Philippians",chapters:4},{book:"Colossians",chapters:4}]},
+  { phase:2, title:"Wisdom & Worship", description:"Psalms, Proverbs, and books of wisdom for daily life", color:GOLD,
+    books:[{book:"Psalms",chapters:150},{book:"Proverbs",chapters:31},{book:"Ecclesiastes",chapters:12},{book:"Song of Solomon",chapters:8},{book:"Job",chapters:42}]},
+  { phase:3, title:"In the Beginning — The Story of Israel", description:"The OT narrative from creation through the wilderness", color:RUST,
+    books:[{book:"Genesis",chapters:50},{book:"Exodus",chapters:40},{book:"Numbers",chapters:36},{book:"Deuteronomy",chapters:34},{book:"Joshua",chapters:24},{book:"Judges",chapters:21},{book:"Ruth",chapters:4},{book:"Leviticus",chapters:27}]},
+  { phase:4, title:"The Church is Born — Acts & Letters", description:"How the early church spread and Paul's letters to the churches", color:"#4A7A8A",
+    books:[{book:"Luke",chapters:24},{book:"Acts",chapters:28},{book:"1 Corinthians",chapters:16},{book:"2 Corinthians",chapters:13},{book:"Galatians",chapters:6},{book:"1 Thessalonians",chapters:5},{book:"2 Thessalonians",chapters:3},{book:"1 Timothy",chapters:6},{book:"2 Timothy",chapters:4},{book:"Titus",chapters:3},{book:"Philemon",chapters:1},{book:"Hebrews",chapters:13},{book:"James",chapters:5},{book:"1 Peter",chapters:5},{book:"2 Peter",chapters:3},{book:"1 John",chapters:5},{book:"2 John",chapters:1},{book:"3 John",chapters:1},{book:"Jude",chapters:1}]},
+  { phase:5, title:"Kings, Prophets & the Heart of Israel", description:"Israel's kings, the major prophets, and God's covenant faithfulness", color:"#7A5C8A",
+    books:[{book:"1 Samuel",chapters:31},{book:"2 Samuel",chapters:24},{book:"1 Kings",chapters:22},{book:"2 Kings",chapters:25},{book:"1 Chronicles",chapters:29},{book:"2 Chronicles",chapters:36},{book:"Ezra",chapters:10},{book:"Nehemiah",chapters:13},{book:"Esther",chapters:10},{book:"Isaiah",chapters:66},{book:"Jeremiah",chapters:52},{book:"Lamentations",chapters:5},{book:"Ezekiel",chapters:48},{book:"Daniel",chapters:12}]},
+  { phase:6, title:"The Minor Prophets & Revelation", description:"Completing the prophets and the final vision of God's plan", color:"#8A6A3A",
+    books:[{book:"Hosea",chapters:14},{book:"Joel",chapters:3},{book:"Amos",chapters:9},{book:"Obadiah",chapters:1},{book:"Jonah",chapters:4},{book:"Micah",chapters:7},{book:"Nahum",chapters:3},{book:"Habakkuk",chapters:3},{book:"Zephaniah",chapters:3},{book:"Haggai",chapters:2},{book:"Zechariah",chapters:14},{book:"Malachi",chapters:4},{book:"Matthew",chapters:28},{book:"Revelation",chapters:22}]}
 ];
 
 const totalChapters = READING_PLAN.reduce((s,p)=>s+p.books.reduce((s2,b)=>s2+b.chapters,0),0);
@@ -130,6 +59,7 @@ export default function BibleStudy() {
   const [savedConvos, setSavedConvos] = useState({});
   const [storageReady, setStorageReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
+  const [hoveredChapter, setHoveredChapter] = useState(null); // {book, ch}
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -146,11 +76,12 @@ export default function BibleStudy() {
   const persist = async (overrides = {}) => {
     setSyncStatus("saving");
     try {
-      await saveData({
-        study_log: overrides.study_log ?? studyLog,
-        completed_chapters: overrides.completed_chapters ?? completedChapters,
-        saved_convos: overrides.saved_convos ?? savedConvos,
-      });
+      const sl = overrides.study_log ?? studyLog;
+      const cc = overrides.completed_chapters ?? completedChapters;
+      const sc = overrides.saved_convos ?? savedConvos;
+      await window.storage.set(STORAGE_KEY, JSON.stringify(sl));
+      await window.storage.set(PLAN_KEY, JSON.stringify(cc));
+      await window.storage.set(CONVOS_KEY, JSON.stringify(sc));
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2000);
     } catch(e) {
@@ -175,10 +106,7 @@ export default function BibleStudy() {
   };
 
   const saveConvo = async (passageRef, msgs) => {
-    const updated = {
-      ...savedConvos,
-      [passageRef]: { messages: msgs, updatedAt: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) }
-    };
+    const updated = {...savedConvos, [passageRef]:{messages:msgs, updatedAt:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}};
     setSavedConvos(updated);
     await persist({ saved_convos: updated });
   };
@@ -206,18 +134,17 @@ export default function BibleStudy() {
     const newMsgs = [...messages, {role:"user",content:userMessage}];
     setMessages(newMsgs); setLoading(true);
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ system: systemPrompt, messages: newMsgs }),
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:systemPrompt,messages:newMsgs})
       });
       const data = await res.json();
       const reply = data.content?.[0]?.text || "No response.";
-      const finalMsgs = [...newMsgs, {role:"assistant",content:reply}];
+      const finalMsgs = [...newMsgs,{role:"assistant",content:reply}];
       setMessages(finalMsgs);
       if(ref) await saveConvo(ref, finalMsgs);
     } catch(e) {
-      setMessages([...newMsgs, {role:"assistant",content:"Error. Please try again."}]);
+      setMessages([...newMsgs,{role:"assistant",content:"Error. Please try again."}]);
     }
     setLoading(false);
   };
@@ -230,9 +157,7 @@ export default function BibleStudy() {
     if(existing) { setMessages(existing.messages); } else { setMessages([]); }
     await saveToLog(ref);
     setTab("chat");
-    if(!existing) {
-      await callClaude(`Please explain this passage: "${ref}". Cover context, key themes, cross-references, and life application.`, ref);
-    }
+    if(!existing) await callClaude(`Please explain this passage: "${ref}". Cover context, key themes, cross-references, and life application.`, ref);
     setPassage("");
   };
 
@@ -254,9 +179,9 @@ export default function BibleStudy() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+        ${fonts}
         *{box-sizing:border-box;margin:0;padding:0}
-        body{background:${INK};margin:0}
+        body{background:${INK}}
         .app{min-height:100vh;background:${CREAM};font-family:'EB Garamond',Georgia,serif;color:${INK};max-width:780px;margin:0 auto;display:flex;flex-direction:column;position:relative}
         .app::before{content:'';position:fixed;top:0;left:50%;transform:translateX(-50%);width:780px;height:100vh;background:repeating-linear-gradient(0deg,transparent,transparent 27px,rgba(201,168,76,0.08) 27px,rgba(201,168,76,0.08) 28px);pointer-events:none;z-index:0}
         header{position:relative;z-index:1;background:${INK};color:${PARCHMENT};padding:20px 28px 16px;border-bottom:3px solid ${GOLD}}
@@ -274,7 +199,7 @@ export default function BibleStudy() {
         nav button:hover:not(.active){color:${PARCHMENT}}
         .content{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;padding:22px 26px;gap:18px}
         .stitle{font-family:'Playfair Display',serif;font-size:20px;font-weight:400;color:${RUST};border-bottom:1px solid ${GOLD};padding-bottom:8px}
-        textarea{font-family:'EB Garamond',serif;font-size:16px;background:white;border:1.5px solid rgba(201,168,76,0.4);border-radius:2px;padding:12px 14px;color:${INK};outline:none;transition:border-color 0.2s;resize:none;width:100%}
+        textarea{font-family:'EB Garamond',serif;font-size:16px;background:white;border:1.5px solid rgba(201,168,76,0.4);border-radius:2px;padding:12px 14px;color:${INK};outline:none;transition:border-color 0.2s;resize:none}
         textarea:focus{border-color:${GOLD}}
         .btn{font-family:'EB Garamond',serif;font-size:15px;letter-spacing:0.5px;padding:11px 18px;border:none;cursor:pointer;transition:all 0.2s;border-radius:2px;white-space:nowrap}
         .bp{background:${INK};color:${GOLD};border:1.5px solid ${INK}}.bp:hover{background:${RUST};border-color:${RUST}}
@@ -302,22 +227,16 @@ export default function BibleStudy() {
         .phead{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;transition:background 0.15s}
         .phead:hover{background:rgba(201,168,76,0.06)}
         .pdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-        .pinfo{flex:1}
-        .pname{font-family:'Playfair Display',serif;font-size:15px}
+        .pinfo{flex:1}.pname{font-family:'Playfair Display',serif;font-size:15px}
         .pmeta{font-size:12px;color:rgba(28,20,16,0.45);font-style:italic;margin-top:2px}
         .ppct{font-size:13px;color:rgba(28,20,16,0.5);margin-right:8px}
-        .pchev{font-size:12px;color:rgba(28,20,16,0.3);transition:transform 0.2s}
-        .pchev.open{transform:rotate(180deg)}
-        .pbar-wrap{height:3px;background:rgba(28,20,16,0.08)}
-        .pbar{height:100%;transition:width 0.3s}
-        .blist{border-top:1px solid rgba(201,168,76,0.2)}
-        .brow{border-bottom:1px solid rgba(201,168,76,0.1)}
+        .pchev{font-size:12px;color:rgba(28,20,16,0.3);transition:transform 0.2s}.pchev.open{transform:rotate(180deg)}
+        .pbar-wrap{height:3px;background:rgba(28,20,16,0.08)}.pbar{height:100%;transition:width 0.3s}
+        .blist{border-top:1px solid rgba(201,168,76,0.2)}.brow{border-bottom:1px solid rgba(201,168,76,0.1)}
         .bhead{display:flex;align-items:center;gap:10px;padding:10px 16px 10px 28px;cursor:pointer;transition:background 0.15s}
         .bhead:hover{background:rgba(201,168,76,0.05)}
-        .bname{flex:1;font-size:15px}
-        .bprog{font-size:12px;color:rgba(28,20,16,0.4)}
-        .bchev{font-size:11px;color:rgba(28,20,16,0.25);transition:transform 0.2s}
-        .bchev.open{transform:rotate(180deg)}
+        .bname{flex:1;font-size:15px}.bprog{font-size:12px;color:rgba(28,20,16,0.4)}
+        .bchev{font-size:11px;color:rgba(28,20,16,0.25);transition:transform 0.2s}.bchev.open{transform:rotate(180deg)}
         .chgrid{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 14px 28px;background:rgba(245,239,224,0.4)}
         .chbtn{width:36px;height:32px;border-radius:2px;font-family:'EB Garamond',serif;font-size:13px;cursor:pointer;transition:all 0.15s;border:1px solid rgba(201,168,76,0.35);background:white;color:${INK};display:flex;align-items:center;justify-content:center}
         .chbtn.done{background:${SAGE};color:white;border-color:${SAGE}}
@@ -344,9 +263,9 @@ export default function BibleStudy() {
             </div>
             {syncStatus && (
               <div className={`sync ${syncStatus}`}>
-                {syncStatus==="saving" && "⟳ Syncing..."}
-                {syncStatus==="saved" && "✓ Synced"}
-                {syncStatus==="error" && "✗ Sync error"}
+                {syncStatus==="saving" && "⟳ Saving..."}
+                {syncStatus==="saved" && "✓ Saved"}
+                {syncStatus==="error" && "✗ Error"}
               </div>
             )}
           </div>
@@ -478,10 +397,34 @@ export default function BibleStudy() {
                             </div>
                             {bOpen && (
                               <div className="chgrid">
-                                {Array.from({length:chapters},(_,i)=>i+1).map(ch=>(
-                                  <button key={ch} className={`chbtn ${isChDone(book,ch)?"done":""}`}
-                                    onClick={()=>toggleChapter(book,ch)}>{ch}</button>
-                                ))}
+                                {Array.from({length:chapters},(_,i)=>i+1).map(ch=>{
+                                  const isHovered = hoveredChapter?.book===book && hoveredChapter?.ch===ch;
+                                  const ref = `${book} ${ch}`;
+                                  return (
+                                    <div key={ch} style={{position:"relative"}}
+                                      onMouseEnter={()=>setHoveredChapter({book,ch})}
+                                      onMouseLeave={()=>setHoveredChapter(null)}>
+                                      <button className={`chbtn ${isChDone(book,ch)?"done":""}`}
+                                        onClick={()=>toggleChapter(book,ch)}>{ch}</button>
+                                      {isHovered && (
+                                        <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:INK,border:`1px solid ${GOLD}`,borderRadius:3,padding:"6px 0",zIndex:100,whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(0,0,0,0.3)"}}>
+                                          <div style={{fontSize:11,color:GOLD,letterSpacing:1,padding:"0 12px 6px",textAlign:"center",borderBottom:`1px solid rgba(201,168,76,0.2)`}}>{ref}</div>
+                                          {[
+                                            ["📖 Study", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Please explain ${ref}. Cover context, key themes, cross-references, and life application.`, ref); setHoveredChapter(null); }],
+                                            ["❓ Quiz", ()=>{ setCurrentPassage(ref); setMessages([]); saveToLog(ref); setTab("chat"); callClaude(`Quiz me on ${ref} with 3-5 questions — mix comprehension and reflection. Number each question.`, ref); setHoveredChapter(null); }],
+                                            [isChDone(book,ch) ? "○ Unmark" : "✓ Mark done", ()=>{ toggleChapter(book,ch); setHoveredChapter(null); }],
+                                          ].map(([label, action])=>(
+                                            <button key={label} onClick={action} style={{display:"block",width:"100%",background:"none",border:"none",color:PARCHMENT,fontSize:13,padding:"6px 14px",cursor:"pointer",textAlign:"left",fontFamily:"'EB Garamond',serif",transition:"background 0.15s"}}
+                                              onMouseEnter={e=>e.target.style.background="rgba(201,168,76,0.12)"}
+                                              onMouseLeave={e=>e.target.style.background="none"}>
+                                              {label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
